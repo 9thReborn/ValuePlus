@@ -1,0 +1,94 @@
+server:
+  port: 3030
+  servlet:
+    context-path: /api/v1
+spring:
+  spring:
+    jackson:
+      serialization:
+        fail-on-empty-beans: false
+  main:
+    lazy-initialization: true
+  datasource:
+    url: jdbc:postgresql://<HOST>:5432/<DATABASE>
+    username: <DB_USERNAME>
+    password: <DB_PASSWORD>
+    hikari:
+      pool-name: VP-LOCAL-CONN-POOL
+
+
+  mail:
+    sender: valueplus-local
+    host: <MAIL_HOST>
+    port: 587
+    username: <MAIL_USERNAME>
+    password: <MAIL_PASSWORD>
+    properties:
+      mail:
+        transport:
+          protocol: smtp
+        smtp:
+          auth: true
+          ehlo:
+            name: smtp-relay.brevo.com
+          starttls:
+            enable: true
+        debug: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  jwt-secret: <JWT_SECRET>
+  jwt-expiration-milliseconds: 86400000
+  jwt-refresh-token-expiration: 604800000
+  server-url: http://backend.valueplusagency.com/api/v1/advertisers/verify
+  frontend-server-url: http://valueplusagency.com/sign-up/verify
+  clicks-url: https://clicks-dev.valueplusagency.com
+  gemini-receipt-url: http://backend.valueplusagency.com/api/v1/webhooks/status
+
+# PRD §9 / §18.1 — fraud rule thresholds. Override per environment or via env vars; no
+# code deploy required to change these.
+valueplus:
+  fraud:
+    same-service-cooldown-hours: 48
+    churn-frequency-window-hours: 24
+    temp-block-duration-hours: 24
+
+
+
+admin:
+  email: <ADMIN_EMAIL>
+contactUs:
+  email: <CONTACT_EMAIL>
+pisi:
+  send-sms-by-list-endpoint: https://sms.pisimobile.com/Partner-Api/SendSMSMessageByList
+  auth-endpoint: https://sms.pisimobile.com/Partner-Api/authenticate
+  auth-email: <PISI_AUTH_EMAIL>
+  auth-password: <PISI_AUTH_PASSWORD>
+  vaspid: <PISI_VASPID>
+  password: <PISI_PASSWORD>
+  send-single-sms-endpoint: https://api.pisimobile.net/v1/sms/outbound/send
+
+
+
+aws:
+  s3:
+    bucketName: <AWS_S3_BUCKET>
+    region: <AWS_S3_REGION>
+    folder: dev-images
+    csvFolder: csv-files
+    accessKey: <AWS_S3_ACCESS_KEY>
+    accessSecret: <AWS_S3_ACCESS_SECRET>
