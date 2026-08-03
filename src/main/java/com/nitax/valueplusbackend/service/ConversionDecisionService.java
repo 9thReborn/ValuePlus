@@ -12,14 +12,14 @@ import java.util.List;
 public interface ConversionDecisionService {
     ConversionDecision recordDecision(
             SubscriberEvent event,
-            String affiliateId,
+            String publisherId,
             ValidationDecision decision,
             ReasonCode reasonCode,
             String message);
 
     ConversionDecision recordReplayDecision(
             SubscriberEvent event,
-            String affiliateId,
+            String publisherId,
             ValidationDecision decision,
             ReasonCode reasonCode,
             String message);

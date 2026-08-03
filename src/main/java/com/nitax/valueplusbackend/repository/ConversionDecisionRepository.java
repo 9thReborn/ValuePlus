@@ -20,7 +20,7 @@ public interface ConversionDecisionRepository extends JpaRepository<ConversionDe
     Page<ConversionDecision> findByMsisdnOrderByDecisionTimeDesc(String msisdn, Pageable pageable);
 
     /**
-     * Rule A support — most recent non-replay ALLOW/decision for this msisdn+service inside a
+     * most recent non-replay ALLOW/decision for this msisdn+service inside a
      * window, used to check whether a cooldown-period duplicate subscription already exists.
      */
     @Query(
@@ -37,10 +37,10 @@ public interface ConversionDecisionRepository extends JpaRepository<ConversionDe
             @Param("serviceId") String serviceId,
             @Param("since") Instant since);
 
-    /** Rule D support — how many distinct affiliates have claimed this msisdn recently. */
+    /** how many distinct affiliates(publishers) have claimed this msisdn recently. */
     @Query(
             """
-            SELECT COUNT(DISTINCT cd.affiliateId) FROM ConversionDecision cd
+            SELECT COUNT(DISTINCT cd.publisherId) FROM ConversionDecision cd
             WHERE cd.msisdn = :msisdn
               AND cd.replay = false
               AND cd.decisionTime >= :since

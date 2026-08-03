@@ -89,4 +89,12 @@ public interface SubscriberEventRepository extends JpaRepository<SubscriberEvent
       """)
     List<SubscriberEvent> findRecentDeactivationsForMsisdn(
             @Param("msisdn") String msisdn, @Param("since") Instant since);
+
+    @Query("""
+      SELECT e FROM SubscriberEvent e
+      JOIN e.subscriber s
+      WHERE s.msisdn = :msisdn
+      ORDER BY e.eventTimestamp DESC
+      """)
+    List<SubscriberEvent> findAllByMsisdnOrderByEventTimestampDesc(@Param("msisdn") String msisdn);
 }

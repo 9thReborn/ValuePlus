@@ -818,6 +818,29 @@ public class AdminController {
         return new ResponseEntity<>(apiResponse, HttpStatus.OK);
     }
 
+    @PostMapping("/subscribers/replay")
+    public ResponseEntity<ApiResponse<ConversionDecision>> replaySubscriberEventByMsisdn(
+            @RequestParam String msisdn) {
+        ConversionDecision replayDecision = subscriberService.replayEventByMsisdn(msisdn);
+        ApiResponse<ConversionDecision> apiResponse = ApiResponse.<ConversionDecision>builder()
+                .success(true)
+                .data(replayDecision)
+                .build();
+        return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+    }
+
+    @GetMapping("/subscribers/decisions")
+    public ResponseEntity<ApiResponse<Page<ConversionDecision>>> getDecisionsForMsisdn(
+            @RequestParam String msisdn,
+            @PageableDefault(sort = "decisionTime", direction = Sort.Direction.DESC) Pageable pageable) {
+        Page<ConversionDecision> decisions = conversionDecisionService.findByMsisdn(msisdn, pageable);
+        ApiResponse<Page<ConversionDecision>> apiResponse = ApiResponse.<Page<ConversionDecision>>builder()
+                .success(true)
+                .data(decisions)
+                .build();
+        return new ResponseEntity<>(apiResponse, HttpStatus.OK);
+    }
+
     @PostMapping("/blocklist")
     public ResponseEntity<ApiResponse<Blocklist>> createBlock(
             @Valid @RequestBody CreateBlocklistRequest request) {

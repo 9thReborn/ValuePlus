@@ -101,87 +101,17 @@ public class SubscriberServiceImpl implements SubscriberService {
     // Save subscriber
     subscriber = subscriberRepository.save(subscriber);
 
-      ValidationDecision decision = ValidationDecision.ALLOW;
-      ReasonCode reasonCode = ReasonCode.NONE;
-      String decisionMessage = "No fraud rule triggered";
-
-      if (eventType == EventType.ACTIVATION) {
-          Optional<Blocklist> activeBlock = blocklistService.findActiveGlobalBlock(request.getMsisdn());
-          if (activeBlock.isPresent()) {
-              decision = ValidationDecision.BLOCK;
-              reasonCode = ReasonCode.GLOBAL_CHURN_LOOP;
-              decisionMessage =
-                      "msisdn "
-                              + request.getMsisdn()
-                              + " under active global block (id="
-                              + activeBlock.get().getId()
-                              + ", reason="
-                              + activeBlock.get().getReasonCode()
-                              + ") until "
-                              + (activeBlock.get().getExpiresAt() != null
-                              ? activeBlock.get().getExpiresAt()
-                              : "released manually");
-              log.info(
-                      " BLOCK: msisdn={}, blockId={}, expiresAt={}",
-                      request.getMsisdn(),
-                      activeBlock.get().getId(),
-                      activeBlock.get().getExpiresAt());
-          } else {
-              Optional<SubscriberEvent> priorActivation =
-                      findRecentSameServiceActivation(request.getMsisdn(), request.getServiceId());
-              if (priorActivation.isPresent()) {
-                  decision = ValidationDecision.BLOCK;
-                  reasonCode = ReasonCode.DUPLICATE_SERVICE_SUB;
-                  decisionMessage =
-                          "msisdn "
-                                  + request.getMsisdn()
-                                  + " already subscribed to service "
-                                  + request.getServiceId()
-                                  + " at "
-                                  + priorActivation.get().getEventTimestamp()
-                                  + ", inside "
-                                  + fraudRuleProperties.getSameServiceCooldownHours()
-                                  + "h cooldown";
-                  log.info(
-                          "Rule A BLOCK: msisdn={}, serviceId={}, previousActivationAt={}",
-                          request.getMsisdn(),
-                          request.getServiceId(),
-                          priorActivation.get().getEventTimestamp());
-              }
-          }
-      } else if (eventType == EventType.DEACTIVATION) {
-          List<SubscriberEvent> priorChurns = findRecentChurns(request.getMsisdn());
-          if (!priorChurns.isEmpty()) {
-              Blocklist block =
-                      blocklistService.createOrRefreshGlobalBlock(
-                              request.getMsisdn(), ReasonCode.GLOBAL_CHURN_LOOP, "SYSTEM:RULE_B");
-              decision = ValidationDecision.BLOCK;
-              reasonCode = ReasonCode.GLOBAL_CHURN_LOOP;
-              decisionMessage =
-                      "msisdn "
-                              + request.getMsisdn()
-                              + " churned "
-                              + (priorChurns.size() + 1)
-                              + " time(s) within "
-                              + fraudRuleProperties.getChurnFrequencyWindowHours()
-                              + "h; global block "
-                              + (block.getId() != null ? "id=" + block.getId() : "")
-                              + " active until "
-                              + block.getExpiresAt();
-              log.info(
-                      "triggered: msisdn={}, churnCountInWindow={}, blockId={}, blockExpiresAt={}",
-                      request.getMsisdn(),
-                      priorChurns.size() + 1,
-                      block.getId(),
-                      block.getExpiresAt());
-          }
-      }
+      FraudRuleOutcome fraudOutcome =
+              evaluateFraudRules(request.getMsisdn(), request.getServiceId(), eventType, true);
+      ValidationDecision decision = fraudOutcome.decision();
+      ReasonCode reasonCode = fraudOutcome.reasonCode();
+      String decisionMessage = fraudOutcome.message();
 
     // Create and save event with idempotency key
     SubscriberEvent event = createEvent(subscriber, eventType, request, rawPayload, idempotencyKey);
     subscriberEventRepository.save(event);
 
-      conversionDecisionService.recordDecision(event, publisherId, decision, reasonCode, decisionMessage);
+    conversionDecisionService.recordDecision(event, publisherId, decision, reasonCode, decisionMessage);
 
     log.info(
         "Subscription webhook processed: subscriberId={}, eventType={}, idempotencyKey={}",
@@ -189,8 +119,8 @@ public class SubscriberServiceImpl implements SubscriberService {
         eventType,
         idempotencyKey);
 
-    // Register conversion and send to publisher (only for ACTIVATION events with renewalFlag
-    // enabled)
+    // Register conversion and send to publisher (only for ACTIVATION events with renewalFlag enabled)
+    // and only if no fraud rule blocked this event
     boolean hasUsableTrxId = trxIdParts.length > 1 || clickRecord.isPresent();
       if (eventType == EventType.DEACTIVATION) {
           UnsubscribeRequest unsubscribeRequest = new UnsubscribeRequest();
@@ -224,10 +154,94 @@ public class SubscriberServiceImpl implements SubscriberService {
       return subscriber;
   }
 
+    private record FraudRuleOutcome(ValidationDecision decision, ReasonCode reasonCode, String message) {}
 
-  /** Returns the most recent prior ACTIVATION for this msisdn+service if one
-   * exists inside the configured cooldown window, or empty if the subscription is clear to
-   * proceed.*/
+    private FraudRuleOutcome evaluateFraudRules(
+            String msisdn, String serviceId, EventType eventType, boolean enforce) {
+        if (eventType == EventType.ACTIVATION) {
+            Optional<Blocklist> activeBlock = blocklistService.findActiveGlobalBlock(msisdn);
+            if (activeBlock.isPresent()) {
+                Blocklist block = activeBlock.get();
+                String message =
+                        "Global Block: msisdn "
+                                + msisdn
+                                + " under active global block (id="
+                                + block.getId()
+                                + ", reason="
+                                + block.getReasonCode()
+                                + ") until "
+                                + (block.getExpiresAt() != null ? block.getExpiresAt() : "released manually");
+                log.info(
+                        "Rule B BLOCK: msisdn={}, blockId={}, expiresAt={}",
+                        msisdn,
+                        block.getId(),
+                        block.getExpiresAt());
+                return new FraudRuleOutcome(ValidationDecision.BLOCK, ReasonCode.GLOBAL_CHURN_LOOP, message);
+            }
+            Optional<SubscriberEvent> priorActivation = findRecentSameServiceActivation(msisdn, serviceId);
+            if (priorActivation.isPresent()) {
+                SubscriberEvent prior = priorActivation.get();
+                String message =
+                        "Duplicate Block: msisdn "
+                                + msisdn
+                                + " already subscribed to service "
+                                + serviceId
+                                + " at "
+                                + prior.getEventTimestamp()
+                                + ", inside "
+                                + fraudRuleProperties.getSameServiceCooldownHours()
+                                + "h cooldown";
+                log.info(
+                        "Rule A BLOCK: msisdn={}, serviceId={}, previousActivationAt={}",
+                        msisdn,
+                        serviceId,
+                        prior.getEventTimestamp());
+                return new FraudRuleOutcome(ValidationDecision.BLOCK, ReasonCode.DUPLICATE_SERVICE_SUB, message);
+            }
+        }else if (eventType == EventType.DEACTIVATION) {
+            List<SubscriberEvent> priorChurns = findRecentChurns(msisdn);
+            if (!priorChurns.isEmpty()) {
+                if (enforce) {
+                    Blocklist block =
+                            blocklistService.createOrRefreshGlobalBlock(
+                                    msisdn, ReasonCode.GLOBAL_CHURN_LOOP, "SYSTEM:Global Block");
+                    String message =
+                            "Rule B: msisdn "
+                                    + msisdn
+                                    + " churned "
+                                    + (priorChurns.size() + 1)
+                                    + " time(s) within "
+                                    + fraudRuleProperties.getChurnFrequencyWindowHours()
+                                    + "h; global block "
+                                    + (block.getId() != null ? "id=" + block.getId() : "")
+                                    + " active until "
+                                    + block.getExpiresAt();
+                    log.info(
+                            "Global Block triggered: msisdn={}, churnCountInWindow={}, blockId={}, blockExpiresAt={}",
+                            msisdn,
+                            priorChurns.size() + 1,
+                            block.getId(),
+                            block.getExpiresAt());
+                    return new FraudRuleOutcome(ValidationDecision.BLOCK, ReasonCode.GLOBAL_CHURN_LOOP, message);
+                }else {
+                    String message =
+                            "Global Block: msisdn "
+                                    + msisdn
+                                    + " churned "
+                                    + (priorChurns.size() + 1)
+                                    + " time(s) within "
+                                    + fraudRuleProperties.getChurnFrequencyWindowHours()
+                                    + "h; would trigger a global block if this were live (replay — no block written)";
+                    log.info(
+                            "Global block wasn't triggerred (no write): msisdn={}, churnCountInWindow={}",
+                            msisdn,
+                            priorChurns.size() + 1);
+                    return new FraudRuleOutcome(ValidationDecision.BLOCK, ReasonCode.GLOBAL_CHURN_LOOP, message);
+                }
+            }
+        }
+        return new FraudRuleOutcome(ValidationDecision.ALLOW, ReasonCode.NONE, "No fraud rule triggered");
+    }
     private Optional<SubscriberEvent> findRecentSameServiceActivation(String msisdn, String serviceId) {
         Instant cooldownStart =
                 Instant.now().minus(Duration.ofHours(fraudRuleProperties.getSameServiceCooldownHours()));
@@ -354,16 +368,41 @@ public class SubscriberServiceImpl implements SubscriberService {
                 event.getSubscriber().getMsisdn(),
                 event.getEventType());
 
-        // Phase 1: no fraud rule engine exists yet, so replay simply re-records the same skeleton
-        // ALLOW/NONE decision, tagged as a replay. Once Rules A-D (Phase 2/3) exist, this is the
-        // hook point to re-run them against the stored event without re-triggering
-        // handleAdvertiserPostbackByGET2 / handleUnsubscription / idempotency writes.
+        FraudRuleOutcome fraudOutcome =
+                evaluateFraudRules(
+                        event.getSubscriber().getMsisdn(),
+                        event.getSubscriber().getServiceId(),
+                        event.getEventType(),
+                        false);
+
         return conversionDecisionService.recordReplayDecision(
                 event,
                 event.getSubscriber().getPublisherId(),
-                ValidationDecision.ALLOW,
-                ReasonCode.NONE,
-                "Replay: investigative recompute, not enforced");
+                fraudOutcome.decision(),
+                fraudOutcome.reasonCode(),
+                "Replay recompute: " + fraudOutcome.message());
+    }
+
+    @Override
+    @Transactional
+    public ConversionDecision replayEventByMsisdn(String msisdn) {
+        String normalizedMsisdn = MsisdnUtil.normalize(msisdn);
+        List<SubscriberEvent> events =
+                subscriberEventRepository.findAllByMsisdnOrderByEventTimestampDesc(normalizedMsisdn);
+        if (events.isEmpty()) {
+            throw new AppException("No subscriber events found for msisdn: " + msisdn);
+        }
+
+        SubscriberEvent mostRecent = events.get(0);
+        log.info(
+                "Resolved msisdn {} -> most recent SubscriberEvent id={} (eventType={}, eventTimestamp={}) for replay",
+                normalizedMsisdn,
+                mostRecent.getId(),
+                mostRecent.getEventType(),
+                mostRecent.getEventTimestamp());
+
+
+        return replayEvent(mostRecent.getId());
     }
 
   @Override

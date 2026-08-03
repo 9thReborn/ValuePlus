@@ -25,26 +25,26 @@ public class ConversionDecisionServiceImpl implements ConversionDecisionService 
     @Override
     public ConversionDecision recordDecision(
             SubscriberEvent event,
-            String affiliateId,
+            String publisherId,
             ValidationDecision decision,
             ReasonCode reasonCode,
             String message) {
-        return save(event, affiliateId, decision, reasonCode, message, false);
+        return save(event, publisherId, decision, reasonCode, message, false);
     }
 
     @Override
     public ConversionDecision recordReplayDecision(
             SubscriberEvent event,
-            String affiliateId,
+            String publisherId,
             ValidationDecision decision,
             ReasonCode reasonCode,
             String message) {
-        return save(event, affiliateId, decision, reasonCode, message, true);
+        return save(event, publisherId, decision, reasonCode, message, true);
     }
 
     private ConversionDecision save(
             SubscriberEvent event,
-            String affiliateId,
+            String publisherId,
             ValidationDecision decision,
             ReasonCode reasonCode,
             String message,
@@ -53,7 +53,7 @@ public class ConversionDecisionServiceImpl implements ConversionDecisionService 
         record.setSubscriberEvent(event);
         record.setMsisdn(event.getSubscriber().getMsisdn());
         record.setServiceId(event.getSubscriber().getServiceId());
-        record.setAffiliateId(affiliateId);
+        record.setPublisherId(publisherId);
         record.setDecision(decision);
         record.setReasonCode(reasonCode == null ? ReasonCode.NONE : reasonCode);
         record.setMessage(message);

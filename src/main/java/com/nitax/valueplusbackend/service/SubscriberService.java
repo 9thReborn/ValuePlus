@@ -20,4 +20,6 @@ public interface SubscriberService {
 
   SubscriberDetailDTO getSubscriberDetail(Long subscriberId);
   ConversionDecision replayEvent(Long subscriberEventId);
+
+  ConversionDecision replayEventByMsisdn(String msisdn);
 }

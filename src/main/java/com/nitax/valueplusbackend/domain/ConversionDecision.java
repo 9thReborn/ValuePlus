@@ -11,7 +11,7 @@ import java.time.Instant;
         name = "conversion_decisions",
         indexes = {
                 @Index(name = "idx_decision_msisdn_service_time", columnList = "msisdn, service_id, decision_time"),
-                @Index(name = "idx_decision_affiliate_time", columnList = "affiliate_id, decision_time"),
+                @Index(name = "idx_decision_publisher_time", columnList = "publisher_id, decision_time"),
                 @Index(name = "idx_decision_event", columnList = "subscriber_event_id"),
                 @Index(name = "idx_decision_type", columnList = "decision")
         })
@@ -29,8 +29,8 @@ public class ConversionDecision extends BaseEntity {
     @Column(name = "service_id")
     private String serviceId;
 
-    @Column(name = "affiliate_id")
-    private String affiliateId;
+    @Column(name = "publisher_id")
+    private String publisherId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "decision", nullable = false)
