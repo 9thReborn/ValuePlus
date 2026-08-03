@@ -172,7 +172,7 @@ public class SubscriberServiceImpl implements SubscriberService {
                                 + ") until "
                                 + (block.getExpiresAt() != null ? block.getExpiresAt() : "released manually");
                 log.info(
-                        "Rule B BLOCK: msisdn={}, blockId={}, expiresAt={}",
+                        "GLOBAL BLOCK: msisdn={}, blockId={}, expiresAt={}",
                         msisdn,
                         block.getId(),
                         block.getExpiresAt());
@@ -192,7 +192,7 @@ public class SubscriberServiceImpl implements SubscriberService {
                                 + fraudRuleProperties.getSameServiceCooldownHours()
                                 + "h cooldown";
                 log.info(
-                        "Rule A BLOCK: msisdn={}, serviceId={}, previousActivationAt={}",
+                        "DUPLICATE BLOCK: msisdn={}, serviceId={}, previousActivationAt={}",
                         msisdn,
                         serviceId,
                         prior.getEventTimestamp());
@@ -204,9 +204,9 @@ public class SubscriberServiceImpl implements SubscriberService {
                 if (enforce) {
                     Blocklist block =
                             blocklistService.createOrRefreshGlobalBlock(
-                                    msisdn, ReasonCode.GLOBAL_CHURN_LOOP, "SYSTEM:Global Block");
+                                    msisdn, ReasonCode.GLOBAL_CHURN_LOOP, "SYSTEM:Global Churn");
                     String message =
-                            "Rule B: msisdn "
+                            "Global Churn: msisdn "
                                     + msisdn
                                     + " churned "
                                     + (priorChurns.size() + 1)
