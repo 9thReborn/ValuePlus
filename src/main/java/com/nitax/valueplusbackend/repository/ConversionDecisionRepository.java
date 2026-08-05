@@ -19,23 +19,6 @@ public interface ConversionDecisionRepository extends JpaRepository<ConversionDe
 
     Page<ConversionDecision> findByMsisdnOrderByDecisionTimeDesc(String msisdn, Pageable pageable);
 
-    /**
-     * most recent non-replay ALLOW/decision for this msisdn+service inside a
-     * window, used to check whether a cooldown-period duplicate subscription already exists.
-     */
-    @Query(
-            """
-            SELECT cd FROM ConversionDecision cd
-            WHERE cd.msisdn = :msisdn
-              AND cd.serviceId = :serviceId
-              AND cd.replay = false
-              AND cd.decisionTime >= :since
-            ORDER BY cd.decisionTime DESC
-            """)
-    List<ConversionDecision> findRecentByMsisdnAndService(
-            @Param("msisdn") String msisdn,
-            @Param("serviceId") String serviceId,
-            @Param("since") Instant since);
 
     /** how many distinct affiliates(publishers) have claimed this msisdn recently. */
     @Query(

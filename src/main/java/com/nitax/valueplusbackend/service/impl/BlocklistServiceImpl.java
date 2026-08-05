@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -21,7 +22,7 @@ import java.util.Optional;
 @Slf4j
 public class BlocklistServiceImpl implements BlocklistService {
 
-    private static final String SYSTEM_CREATED_BY = "SYSTEM:RULE_B";
+    private static final String SYSTEM_CREATED_BY = "SYSTEM:GLOBAL_CHURN_BLOCK";
 
     private final BlocklistRepository blocklistRepository;
     private final FraudRuleProperties fraudRuleProperties;
@@ -31,9 +32,9 @@ public class BlocklistServiceImpl implements BlocklistService {
         Instant now = Instant.now();
         Instant newExpiry = now.plus(Duration.ofHours(fraudRuleProperties.getTempBlockDurationHours()));
 
-        Optional<Blocklist> existing = blocklistRepository.findActiveGlobalBlock(msisdn, now);
-        if (existing.isPresent()) {
-            Blocklist block = existing.get();
+        List<Blocklist> existing = blocklistRepository.findActiveGlobalBlocks(msisdn, now);
+        if (!existing.isEmpty()) {
+            Blocklist block = existing.get(0);
             block.setExpiresAt(newExpiry);
             block.setReasonCode(reasonCode);
             log.info(
@@ -61,7 +62,8 @@ public class BlocklistServiceImpl implements BlocklistService {
 
     @Override
     public Optional<Blocklist> findActiveGlobalBlock(String msisdn) {
-        return blocklistRepository.findActiveGlobalBlock(msisdn, Instant.now());
+        List<Blocklist> active = blocklistRepository.findActiveGlobalBlocks(msisdn, Instant.now());
+        return active.isEmpty() ? Optional.empty() : Optional.of(active.get(0));
     }
 
     @Override
@@ -92,14 +94,31 @@ public class BlocklistServiceImpl implements BlocklistService {
         if (scope == Blocklist.Scope.SERVICE && (serviceId == null || serviceId.isEmpty())) {
             throw new AppException("serviceId is required for SERVICE-scope blocks");
         }
+        Instant expiresAt =
+                durationHours == null ? null : Instant.now().plus(Duration.ofHours(durationHours));
+
+        if (scope == Blocklist.Scope.GLOBAL) {
+            List<Blocklist> existing = blocklistRepository.findActiveGlobalBlocks(msisdn, Instant.now());
+            if (!existing.isEmpty()) {
+                Blocklist block = existing.get(0);
+                block.setExpiresAt(expiresAt);
+                block.setReasonCode(ReasonCode.MANUAL_OVERRIDE);
+                block.setCreatedBy(createdBy);
+                log.info(
+                        "Refreshed existing global block for msisdn={} via manual override, expiresAt={}, createdBy={}",
+                        msisdn,
+                        expiresAt,
+                        createdBy);
+                return blocklistRepository.save(block);
+            }
+        }
 
         Blocklist block = new Blocklist();
         block.setMsisdn(msisdn);
         block.setScope(scope);
         block.setServiceId(scope == Blocklist.Scope.SERVICE ? serviceId : null);
         block.setReasonCode(ReasonCode.MANUAL_OVERRIDE);
-        block.setExpiresAt(
-                durationHours == null ? null : Instant.now().plus(Duration.ofHours(durationHours)));
+        block.setExpiresAt(expiresAt);
         block.setCreatedBy(createdBy);
         log.info(
                 "Manual block created: msisdn={}, scope={}, serviceId={}, expiresAt={}, createdBy={}",

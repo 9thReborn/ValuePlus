@@ -20,7 +20,7 @@ public class Blocklist extends BaseEntity {
     @Column(name = "msisdn", nullable = false)
     private String msisdn;
 
-    /** GLOBAL = blocks the MSISDN across every service (Rule B). SERVICE = a single service_id. */
+    /** GLOBAL = blocks the MSISDN across every service. SERVICE = a single service_id. */
     @Enumerated(EnumType.STRING)
     @Column(name = "scope", nullable = false)
     private Scope scope;
@@ -33,7 +33,7 @@ public class Blocklist extends BaseEntity {
     @Column(name = "reason_code", nullable = false)
     private ReasonCode reasonCode;
 
-    /** Null means permanent — PRD §9.2: "escalation to longer or permanent restriction." */
+    /** Null means permanent (escalation to longer or permanent restriction.) */
     @Column(name = "expires_at")
     private Instant expiresAt;
 
@@ -47,7 +47,7 @@ public class Blocklist extends BaseEntity {
     @Column(name = "released_by")
     private String releasedBy;
 
-    /** "SYSTEM:RULE_B" for automated blocks, or the admin's email for manual blocks (PRD §14). */
+    /** "SYSTEM" for automated blocks, or the admin's email for manual blocks. */
     @Column(name = "created_by", nullable = false)
     private String createdBy;
 
