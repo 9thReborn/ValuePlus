@@ -176,8 +176,32 @@ public class SubscriberServiceImpl implements SubscriberService {
                         msisdn,
                         block.getId(),
                         block.getExpiresAt());
-                return new FraudRuleOutcome(ValidationDecision.BLOCK, ReasonCode.GLOBAL_CHURN_LOOP, message);
+                return new FraudRuleOutcome(ValidationDecision.BLOCK, block.getReasonCode(), message);
             }
+
+            Optional<Blocklist> activeServiceBlock = blocklistService.findActiveServiceBlock(msisdn, serviceId);
+            if (activeServiceBlock.isPresent()) {
+                Blocklist block = activeServiceBlock.get();
+                String message =
+                        "Manual block: msisdn "
+                                + msisdn
+                                + " under active block for service "
+                                + serviceId
+                                + " (id="
+                                + block.getId()
+                                + ", reason="
+                                + block.getReasonCode()
+                                + ") until "
+                                + (block.getExpiresAt() != null ? block.getExpiresAt() : "released manually");
+                log.info(
+                        "Manual SERVICE block BLOCK: msisdn={}, serviceId={}, blockId={}, expiresAt={}",
+                        msisdn,
+                        serviceId,
+                        block.getId(),
+                        block.getExpiresAt());
+                return new FraudRuleOutcome(ValidationDecision.BLOCK, block.getReasonCode(), message);
+            }
+
             Optional<SubscriberEvent> priorActivation = findRecentSameServiceActivation(msisdn, serviceId);
             if (priorActivation.isPresent()) {
                 SubscriberEvent prior = priorActivation.get();

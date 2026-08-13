@@ -29,6 +29,19 @@ public interface BlocklistRepository extends JpaRepository<Blocklist, Long> {
             """)
     List<Blocklist> findActiveGlobalBlocks(@Param("msisdn") String msisdn, @Param("now") Instant now);
 
+    @Query(
+            """
+            SELECT b FROM Blocklist b
+            WHERE b.msisdn = :msisdn
+              AND b.scope = 'SERVICE'
+              AND b.serviceId = :serviceId
+              AND b.released = false
+              AND (b.expiresAt IS NULL OR b.expiresAt > :now)
+            ORDER BY b.expiresAt DESC NULLS FIRST
+            """)
+    List<Blocklist> findActiveServiceBlocks(
+            @Param("msisdn") String msisdn, @Param("serviceId") String serviceId, @Param("now") Instant now);
+
     Page<Blocklist> findByMsisdnOrderByCreatedDateDesc(String msisdn, Pageable pageable);
 
     Page<Blocklist> findAllByOrderByCreatedDateDesc(Pageable pageable);

@@ -10,6 +10,8 @@ import java.util.Optional;
 public interface BlocklistService {
     Blocklist createOrRefreshGlobalBlock(String msisdn, ReasonCode reasonCode, String createdBy);
     Optional<Blocklist> findActiveGlobalBlock(String msisdn);
+
+    Optional<Blocklist> findActiveServiceBlock(String msisdn, String serviceId);
     Blocklist release(Long blockId, String releasedBy);
     Blocklist createManualBlock(
             String msisdn,

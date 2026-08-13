@@ -67,6 +67,13 @@ public class BlocklistServiceImpl implements BlocklistService {
     }
 
     @Override
+    public Optional<Blocklist> findActiveServiceBlock(String msisdn, String serviceId) {
+        List<Blocklist> active =
+                blocklistRepository.findActiveServiceBlocks(msisdn, serviceId, Instant.now());
+        return active.isEmpty() ? Optional.empty() : Optional.of(active.get(0));
+    }
+
+    @Override
     public Blocklist release(Long blockId, String releasedBy) {
         Blocklist block =
                 blocklistRepository
