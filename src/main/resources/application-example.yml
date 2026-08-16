@@ -66,6 +66,7 @@ valueplus:
     churn-frequency-window-hours: 24
     temp-block-duration-hours: 24
     early-churn-window-hours: 6
+    multi-affiliate-window-hours: 24
 
 
 

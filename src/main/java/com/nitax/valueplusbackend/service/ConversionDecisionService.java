@@ -4,9 +4,11 @@ import com.nitax.valueplusbackend.domain.ConversionDecision;
 import com.nitax.valueplusbackend.domain.ReasonCode;
 import com.nitax.valueplusbackend.domain.SubscriberEvent;
 import com.nitax.valueplusbackend.domain.ValidationDecision;
+import com.nitax.valueplusbackend.dto.response.PublisherPeriodCountDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface ConversionDecisionService {
@@ -27,4 +29,11 @@ public interface ConversionDecisionService {
     List<ConversionDecision> findByEventId(Long subscriberEventId);
 
     Page<ConversionDecision> findByMsisdn(String msisdn, Pageable pageable);
+
+    List<String> findDistinctOtherPublisherIdsForMsisdnSince(
+            String msisdn, Instant since, String currentPublisherId);
+
+    /** Affiliate scoring — per-publisher count of a given decision type in a period. */
+    List<PublisherPeriodCountDTO> countByPublisherForDecisionInPeriod(
+            ValidationDecision decision, Instant start, Instant end);
 }

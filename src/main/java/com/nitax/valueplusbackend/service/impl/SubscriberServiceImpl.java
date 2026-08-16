@@ -102,7 +102,7 @@ public class SubscriberServiceImpl implements SubscriberService {
     subscriber = subscriberRepository.save(subscriber);
 
       FraudRuleOutcome fraudOutcome =
-              evaluateFraudRules(request.getMsisdn(), request.getServiceId(), eventType, true);
+              evaluateFraudRules(request.getMsisdn(), request.getServiceId(), publisherId, eventType, true);
       ValidationDecision decision = fraudOutcome.decision();
       ReasonCode reasonCode = fraudOutcome.reasonCode();
       String decisionMessage = fraudOutcome.message();
@@ -157,13 +157,13 @@ public class SubscriberServiceImpl implements SubscriberService {
     private record FraudRuleOutcome(ValidationDecision decision, ReasonCode reasonCode, String message) {}
 
     private FraudRuleOutcome evaluateFraudRules(
-            String msisdn, String serviceId, EventType eventType, boolean enforce) {
+            String msisdn, String serviceId,String publisherId, EventType eventType, boolean enforce) {
         if (eventType == EventType.ACTIVATION) {
             Optional<Blocklist> activeBlock = blocklistService.findActiveGlobalBlock(msisdn);
             if (activeBlock.isPresent()) {
                 Blocklist block = activeBlock.get();
                 String message =
-                        "Global Block: msisdn "
+                        "GLOBAL BLOCK: msisdn "
                                 + msisdn
                                 + " under active global block (id="
                                 + block.getId()
@@ -222,6 +222,26 @@ public class SubscriberServiceImpl implements SubscriberService {
                         prior.getEventTimestamp());
                 return new FraudRuleOutcome(ValidationDecision.BLOCK, ReasonCode.DUPLICATE_SERVICE_SUB, message);
             }
+
+            List<String> otherPublishers = findOtherAffiliatesForMsisdn(msisdn, publisherId);
+            if (!otherPublishers.isEmpty()) {
+                String message =
+                        "Rule D: msisdn "
+                                + msisdn
+                                + " attributed to publisher "
+                                + publisherId
+                                + " now, but also to "
+                                + otherPublishers
+                                + " within "
+                                + fraudRuleProperties.getMultiAffiliateWindowHours()
+                                + "h — flagged for review, not blocked";
+                log.info(
+                        "Rule D FLAG: msisdn={}, currentPublisherId={}, otherPublisherIds={}",
+                        msisdn,
+                        publisherId,
+                        otherPublishers);
+                return new FraudRuleOutcome(ValidationDecision.FLAG, ReasonCode.MULTI_AFFILIATE_DUPLICATE, message);
+            }
         }else if (eventType == EventType.DEACTIVATION) {
             List<SubscriberEvent> priorChurns = findRecentChurns(msisdn);
             if (!priorChurns.isEmpty()) {
@@ -279,6 +299,16 @@ public class SubscriberServiceImpl implements SubscriberService {
         Instant windowStart =
                 Instant.now().minus(Duration.ofHours(fraudRuleProperties.getChurnFrequencyWindowHours()));
         return subscriberEventRepository.findRecentDeactivationsForMsisdn(msisdn, windowStart);
+    }
+
+    private List<String> findOtherAffiliatesForMsisdn(String msisdn, String currentPublisherId) {
+        if (currentPublisherId == null) {
+            return List.of();
+        }
+        Instant windowStart =
+                Instant.now().minus(Duration.ofHours(fraudRuleProperties.getMultiAffiliateWindowHours()));
+        return conversionDecisionService.findDistinctOtherPublisherIdsForMsisdnSince(
+                msisdn, windowStart, currentPublisherId);
     }
 
   /** Extract sourceId from trxId if present (format: ...SRCID{sourceId}) */
@@ -396,6 +426,7 @@ public class SubscriberServiceImpl implements SubscriberService {
                 evaluateFraudRules(
                         event.getSubscriber().getMsisdn(),
                         event.getSubscriber().getServiceId(),
+                        event.getSubscriber().getPublisherId(),
                         event.getEventType(),
                         false);
 

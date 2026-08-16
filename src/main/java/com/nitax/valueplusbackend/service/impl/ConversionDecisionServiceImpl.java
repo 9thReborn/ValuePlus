@@ -4,6 +4,7 @@ import com.nitax.valueplusbackend.domain.ConversionDecision;
 import com.nitax.valueplusbackend.domain.ReasonCode;
 import com.nitax.valueplusbackend.domain.SubscriberEvent;
 import com.nitax.valueplusbackend.domain.ValidationDecision;
+import com.nitax.valueplusbackend.dto.response.PublisherPeriodCountDTO;
 import com.nitax.valueplusbackend.repository.ConversionDecisionRepository;
 import com.nitax.valueplusbackend.service.ConversionDecisionService;
 import lombok.RequiredArgsConstructor;
@@ -83,5 +84,18 @@ public class ConversionDecisionServiceImpl implements ConversionDecisionService 
     @Override
     public Page<ConversionDecision> findByMsisdn(String msisdn, Pageable pageable) {
         return conversionDecisionRepository.findByMsisdnOrderByDecisionTimeDesc(msisdn, pageable);
+    }
+
+    @Override
+    public List<String> findDistinctOtherPublisherIdsForMsisdnSince(
+            String msisdn, Instant since, String currentPublisherId) {
+        return conversionDecisionRepository.findDistinctOtherPublisherIdsForMsisdnSince(
+                msisdn, since, currentPublisherId);
+    }
+
+    @Override
+    public List<PublisherPeriodCountDTO> countByPublisherForDecisionInPeriod(
+            ValidationDecision decision, Instant start, Instant end) {
+        return conversionDecisionRepository.countByPublisherForDecisionInPeriod(decision, start, end);
     }
 }
