@@ -95,17 +95,19 @@ public class SubscriberServiceImpl implements SubscriberService {
       throw new AppException("Duplicate webhook event");
     }
 
-    // Find or create subscriber
-    Subscriber subscriber = findOrCreateSubscriber(request, campaignId, publisherId);
-
-    // Save subscriber
-    subscriber = subscriberRepository.save(subscriber);
-
       FraudRuleOutcome fraudOutcome =
               evaluateFraudRules(request.getMsisdn(), request.getServiceId(), publisherId, eventType, true);
       ValidationDecision decision = fraudOutcome.decision();
       ReasonCode reasonCode = fraudOutcome.reasonCode();
       String decisionMessage = fraudOutcome.message();
+
+    // Find or create subscriber
+    Subscriber subscriber = findOrCreateSubscriber(request, campaignId, publisherId, decision != ValidationDecision.BLOCK);
+
+    // Save subscriber
+    subscriber = subscriberRepository.save(subscriber);
+
+
 
     // Create and save event with idempotency key
     SubscriberEvent event = createEvent(subscriber, eventType, request, rawPayload, idempotencyKey);
@@ -502,7 +504,7 @@ public class SubscriberServiceImpl implements SubscriberService {
   }
 
   private Subscriber findOrCreateSubscriber(
-      SubscriptionWebhookRequest request, String campaignId, String publisherId) {
+      SubscriptionWebhookRequest request, String campaignId, String publisherId, boolean allowAttributionUpdate) {
     Optional<Subscriber> existingSubscriber =
         subscriberRepository.findByMsisdnAndServiceId(request.getMsisdn(), request.getServiceId());
 
@@ -514,17 +516,27 @@ public class SubscriberServiceImpl implements SubscriberService {
           && (subscriber.getTrxId() == null || subscriber.getTrxId().isEmpty())) {
         subscriber.setTrxId(request.getTrxId());
       }
-      // Update campaignId and publisherId
-      subscriber.setCampaignId(campaignId);
-      if (publisherId != null) {
-        subscriber.setPublisherId(publisherId);
-      }
-      // Update advertiserId from campaign
-      Campaign campaign = campaignService.findCampaignById(campaignId).orElse(null);
-      if (campaign != null && campaign.getAdvertiser() != null) {
-        subscriber.setAdvertiserId(campaign.getAdvertiser().getId().toString());
-      }
-      return subscriber;
+        if (allowAttributionUpdate) {
+          // Update campaignId and publisherId
+          subscriber.setCampaignId(campaignId);
+          if (publisherId != null) {
+            subscriber.setPublisherId(publisherId);
+          }
+          // Update advertiserId from campaign
+          Campaign campaign = campaignService.findCampaignById(campaignId).orElse(null);
+          if (campaign != null && campaign.getAdvertiser() != null) {
+            subscriber.setAdvertiserId(campaign.getAdvertiser().getId().toString());
+          }
+        } else {
+                log.info(
+                        "Skipping attribution update for blocked event: msisdn={}, serviceId={}, "
+                                + "rejectedCampaignId={}, rejectedPublisherId={}",
+                        request.getMsisdn(),
+                        request.getServiceId(),
+                        campaignId,
+                        publisherId);
+            }
+          return subscriber;
     }
 
     // Create new subscriber
