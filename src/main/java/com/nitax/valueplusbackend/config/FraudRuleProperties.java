@@ -13,4 +13,5 @@ public class FraudRuleProperties {
     private int sameServiceCooldownHours;
     private int churnFrequencyWindowHours;
     private int tempBlockDurationHours;
+    private int earlyChurnWindowHours;
 }

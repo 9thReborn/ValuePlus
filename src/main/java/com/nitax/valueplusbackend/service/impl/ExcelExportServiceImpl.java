@@ -1,5 +1,6 @@
 package com.nitax.valueplusbackend.service.impl;
 
+import com.nitax.valueplusbackend.domain.PayoutClassification;
 import com.nitax.valueplusbackend.dto.AdminChurnReportDto;
 import com.nitax.valueplusbackend.dto.response.AdvertiserConversionCpaBreakdownDTO;
 import com.nitax.valueplusbackend.dto.response.AdvertiserConversionDTO;
@@ -801,5 +802,99 @@ public class ExcelExportServiceImpl implements ExcelExportService {
       throw new RuntimeException("Failed to generate churn report Excel", e);
     }
   }
+
+    // ==================== Payout Report Export (reason-code traceability) ====================
+
+    private static final String[] PAYOUT_REPORT_HEADERS = {
+            "MSISDN", "Campaign ID", "Publisher ID", "Reason Code", "Message", "Classified At", "Amount"
+    };
+    @Override
+    public ByteArrayOutputStream exportPayoutReportToExcel(List<PayoutClassification> records) {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+
+            CellStyle headerStyle = createHeaderStyle(workbook);
+            CellStyle dataStyle = createDataStyle(workbook);
+            CellStyle currencyStyle = createCurrencyStyle(workbook);
+
+            Sheet sheet = workbook.createSheet("Invalid For Payout");
+
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < PAYOUT_REPORT_HEADERS.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(PAYOUT_REPORT_HEADERS[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            int rowNum = 1;
+            double totalAmount = 0;
+            for (PayoutClassification record : records) {
+                Row row = sheet.createRow(rowNum++);
+                int cellNum = 0;
+
+                Cell cell = row.createCell(cellNum++);
+                cell.setCellValue(record.getMsisdn() != null ? record.getMsisdn() : "");
+                cell.setCellStyle(dataStyle);
+
+                cell = row.createCell(cellNum++);
+                cell.setCellValue(record.getCampaignId() != null ? record.getCampaignId() : "");
+                cell.setCellStyle(dataStyle);
+
+                cell = row.createCell(cellNum++);
+                cell.setCellValue(record.getPublisherId() != null ? record.getPublisherId() : "");
+                cell.setCellStyle(dataStyle);
+
+                // The structured reason code this export exists to surface — not free-text message.
+                cell = row.createCell(cellNum++);
+                cell.setCellValue(record.getReasonCode() != null ? record.getReasonCode().name() : "");
+                cell.setCellStyle(dataStyle);
+
+                cell = row.createCell(cellNum++);
+                cell.setCellValue(record.getMessage() != null ? record.getMessage() : "");
+                cell.setCellStyle(dataStyle);
+
+                cell = row.createCell(cellNum++);
+                cell.setCellValue(
+                        record.getClassifiedAt() != null ? record.getClassifiedAt().toString() : "");
+                cell.setCellStyle(dataStyle);
+
+                double amount =
+                        record.getNotification() != null && record.getNotification().getCpaRevenue() != null
+                                ? record.getNotification().getCpaRevenue()
+                                : 0;
+                totalAmount += amount;
+                cell = row.createCell(cellNum);
+                cell.setCellValue(amount);
+                cell.setCellStyle(currencyStyle);
+            }
+
+            if (records.isEmpty()) {
+                rowNum = 1;
+            } else {
+                rowNum++;
+            }
+            Row summaryRow = sheet.createRow(rowNum);
+            Cell cell = summaryRow.createCell(0);
+            cell.setCellValue("TOTAL");
+            cell.setCellStyle(headerStyle);
+            cell = summaryRow.createCell(3);
+            cell.setCellValue(records.size());
+            cell.setCellStyle(headerStyle);
+            cell = summaryRow.createCell(6);
+            cell.setCellValue(totalAmount);
+            cell.setCellStyle(headerStyle);
+
+            for (int i = 0; i < PAYOUT_REPORT_HEADERS.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            workbook.write(outputStream);
+            return outputStream;
+
+        } catch (IOException e) {
+            log.error("Error generating Payout Report Excel: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to generate Payout Report Excel", e);
+        }
+    }
 
 }

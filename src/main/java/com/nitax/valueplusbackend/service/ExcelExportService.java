@@ -3,6 +3,7 @@ package com.nitax.valueplusbackend.service;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 
+import com.nitax.valueplusbackend.domain.PayoutClassification;
 import com.nitax.valueplusbackend.dto.AdminChurnReportDto;
 import com.nitax.valueplusbackend.dto.response.AdvertiserConversionCpaBreakdownDTO;
 import com.nitax.valueplusbackend.dto.response.AdvertiserConversionDTO;
@@ -47,4 +48,14 @@ public interface ExcelExportService {
       List<AdvertiserConversionCpaBreakdownDTO> conversions);
 
   ByteArrayOutputStream exportAdminChurnReportToExcel(List<AdminChurnReportDto> rows);
+
+    /**
+     * Exports invalid-for-payout {@link PayoutClassification}
+     * rows with their structured {@code reasonCode} as its own column, rather than the free-text
+     * {@code Notification.message} field this replaces (see {@code ReasonCode}'s javadoc).
+     *
+     * @param records List of INVALID_FOR_PAYOUT classification rows for the requested date range
+     * @return ByteArrayOutputStream containing the Excel file data
+     */
+    ByteArrayOutputStream exportPayoutReportToExcel(List<PayoutClassification> records);
 }

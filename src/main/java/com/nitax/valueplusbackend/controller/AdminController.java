@@ -11,6 +11,7 @@ import java.util.List;
 
 import com.nitax.valueplusbackend.domain.*;
 import com.nitax.valueplusbackend.dto.request.*;
+import com.nitax.valueplusbackend.dto.response.*;
 import com.nitax.valueplusbackend.service.*;
 import org.springframework.cache.CacheManager;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -38,21 +39,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.nitax.valueplusbackend.dto.CampignUrlDto;
 import com.nitax.valueplusbackend.dto.mapper.EntityDtoMapper;
-import com.nitax.valueplusbackend.dto.response.AdvertiserConversionCpaBreakdownDTO;
-import com.nitax.valueplusbackend.dto.response.AdvertiserConversionDTO;
-import com.nitax.valueplusbackend.dto.response.AdvertiserConversionDTOForTop;
-import com.nitax.valueplusbackend.dto.response.AdvertiserNameResponse;
-import com.nitax.valueplusbackend.dto.response.ApiResponse;
-import com.nitax.valueplusbackend.dto.response.AutoFillDTO;
-import com.nitax.valueplusbackend.dto.response.ChurnReport;
-import com.nitax.valueplusbackend.dto.response.CommonSubscriberStats;
-import com.nitax.valueplusbackend.dto.response.LoginResponse;
-import com.nitax.valueplusbackend.dto.response.MonthlyConversionCount;
-import com.nitax.valueplusbackend.dto.response.PublisherCampaignConversionsDTO;
-import com.nitax.valueplusbackend.dto.response.PublisherConversionsDTO;
-import com.nitax.valueplusbackend.dto.response.PublisherResponse;
-import com.nitax.valueplusbackend.dto.response.SearchPostbackDto;
-import com.nitax.valueplusbackend.dto.response.SubscriberDetailDTO;
 import com.nitax.valueplusbackend.dto.AdminChurnReportDto;
 
 import com.nitax.valueplusbackend.exception.AppException;
@@ -81,6 +67,7 @@ public class AdminController {
   private final com.nitax.valueplusbackend.service.ReportService reportService;
   private final NotificationService notificationService;
   private final BlocklistService blocklistService;
+  private final PayoutClassificationService payoutClassificationService;
 
   @PostMapping("login")
   public ResponseEntity<ApiResponse<LoginResponse>> adminLogin(@RequestBody AdminLoginRequest dto) {
@@ -690,6 +677,36 @@ public class AdminController {
     headers.setContentDispositionFormData("attachment", filename);
     return ResponseEntity.ok().headers(headers).body(out.toByteArray());
   }
+
+    @GetMapping("/reports/payout")
+    public ResponseEntity<ApiResponse<PayoutReportDTO>> getPayoutReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        Instant startDate = dateFrom.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant endDate = dateTo.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        PayoutReportDTO report = payoutClassificationService.generateReport(startDate, endDate);
+        ApiResponse<PayoutReportDTO> apiResponse =
+                ApiResponse.<PayoutReportDTO>builder().success(true).data(report).build();
+        return ResponseEntity.ok(apiResponse);
+    }
+
+    @GetMapping("/reports/payout/download")
+    public ResponseEntity<byte[]> downloadPayoutReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo)
+            throws IOException {
+        Instant startDate = dateFrom.atStartOfDay().toInstant(ZoneOffset.UTC);
+        Instant endDate = dateTo.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        List<PayoutClassification> records =
+                payoutClassificationService.findInvalidRecordsForExport(startDate, endDate);
+        ByteArrayOutputStream out = excelExportService.exportPayoutReportToExcel(records);
+        String filename = "payout-report-" + dateFrom + "-to-" + dateTo + ".xlsx";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(
+                MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.setContentDispositionFormData("attachment", filename);
+        return ResponseEntity.ok().headers(headers).body(out.toByteArray());
+    }
 
   // churnReport Endpoint
   @GetMapping("/churn/report")

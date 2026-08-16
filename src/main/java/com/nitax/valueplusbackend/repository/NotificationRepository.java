@@ -63,6 +63,14 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
       @Param("startOfDay") Instant startOfDay,
       @Param("endOfDay") Instant endOfDay);
 
+    @Query(
+            "SELECT COUNT(n) "
+                    + "FROM Notification n "
+                    + "WHERE n.status IN ('PUBLISHER_HOOK_SENT', 'ADVERTISER_HOOK_RECEIVED') "
+                    + "  AND n.createdDate BETWEEN :startOfDay AND :endOfDay")
+    long countConversionsWithDateRange(
+            @Param("startOfDay") Instant startOfDay, @Param("endOfDay") Instant endOfDay);
+
   @Query(
       "SELECT SUM(n.vpRevenue) "
           + "FROM Notification n "

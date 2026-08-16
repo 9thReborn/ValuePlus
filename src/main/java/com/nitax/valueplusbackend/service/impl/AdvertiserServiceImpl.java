@@ -1,13 +1,9 @@
 package com.nitax.valueplusbackend.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nitax.valueplusbackend.config.FraudRuleProperties;
 import com.nitax.valueplusbackend.config.JwtUtils;
-import com.nitax.valueplusbackend.domain.Advertiser;
-import com.nitax.valueplusbackend.domain.AdvertiserStatus;
-import com.nitax.valueplusbackend.domain.AppRoles;
-import com.nitax.valueplusbackend.domain.Campaign;
-import com.nitax.valueplusbackend.domain.Notification;
-import com.nitax.valueplusbackend.domain.Publisher;
+import com.nitax.valueplusbackend.domain.*;
 import com.nitax.valueplusbackend.dto.AuthenticationResponse;
 import com.nitax.valueplusbackend.dto.CampaignDetailsDTO;
 import com.nitax.valueplusbackend.dto.ReportingChartDto;
@@ -37,13 +33,7 @@ import com.nitax.valueplusbackend.exception.AppException;
 import com.nitax.valueplusbackend.exception.DuplicateAdvertiserException;
 import com.nitax.valueplusbackend.repository.AdvertiserRepository;
 import com.nitax.valueplusbackend.repository.RoleRepository;
-import com.nitax.valueplusbackend.service.AdvertiserService;
-import com.nitax.valueplusbackend.service.CampaignService;
-import com.nitax.valueplusbackend.service.EmailService;
-import com.nitax.valueplusbackend.service.NotificationService;
-import com.nitax.valueplusbackend.service.PublisherCampaignService;
-import com.nitax.valueplusbackend.service.PublisherService;
-import com.nitax.valueplusbackend.service.WalletService;
+import com.nitax.valueplusbackend.service.*;
 import com.nitax.valueplusbackend.utils.AppUtils;
 import com.nitax.valueplusbackend.utils.enums.Role;
 import jakarta.servlet.http.HttpServletRequest;
@@ -89,6 +79,8 @@ public class AdvertiserServiceImpl implements AdvertiserService {
   private final PublisherCampaignService publisherCampaignService;
   private final RoleRepository roleRepository;
   private final WalletService walletService;
+    private final PayoutClassificationService payoutClassificationService;
+    private final FraudRuleProperties fraudRuleProperties;
 
   @Value("${app.frontend-server-url}")
   private String frontendServerUrl;
@@ -258,6 +250,29 @@ public class AdvertiserServiceImpl implements AdvertiserService {
       Duration duration =
           Duration.between(
               notification.getCreatedDate(), unsubscribeRequest.getFormattedUnsubscribeDateTime());
+
+        if (duration.compareTo(Duration.ofHours(fraudRuleProperties.getEarlyChurnWindowHours())) < 0) {
+            String payoutMessage =
+                    "Msisdn "
+                            + notification.getMsisdn()
+                            + " churned "
+                            + duration.toMinutes()
+                            + " minute(s) after conversion (notificationId="
+                            + notification.getId()
+                            + "), inside the "
+                            + fraudRuleProperties.getEarlyChurnWindowHours()
+                            + "h early-churn window";
+            payoutClassificationService.recordClassification(
+                    notification,
+                    PayoutClassification.Classification.INVALID_FOR_PAYOUT,
+                    ReasonCode.EARLY_CHURN,
+                    payoutMessage);
+            log.info(
+                    "INVALID_FOR_PAYOUT: msisdn={}, notificationId={}, churnedAfterMinutes={}",
+                    notification.getMsisdn(),
+                    notification.getId(),
+                    duration.toMinutes());
+        }
 
       Notification newNotification = new Notification();
       newNotification.setStatus(Notification.NotificationStatus.UNSUBSCRIBED);

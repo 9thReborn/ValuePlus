@@ -59,13 +59,13 @@ app:
   clicks-url: https://clicks-dev.valueplusagency.com
   gemini-receipt-url: http://backend.valueplusagency.com/api/v1/webhooks/status
 
-# PRD §9 / §18.1 — fraud rule thresholds. Override per environment or via env vars; no
-# code deploy required to change these.
+# fraud rule thresholds. Override per environment or via env vars; no code deploy required to change these.
 valueplus:
   fraud:
     same-service-cooldown-hours: 48
     churn-frequency-window-hours: 24
     temp-block-duration-hours: 24
+    early-churn-window-hours: 6
 
 
 

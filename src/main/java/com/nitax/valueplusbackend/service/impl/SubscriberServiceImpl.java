@@ -228,7 +228,7 @@ public class SubscriberServiceImpl implements SubscriberService {
                 if (enforce) {
                     Blocklist block =
                             blocklistService.createOrRefreshGlobalBlock(
-                                    msisdn, ReasonCode.GLOBAL_CHURN_LOOP, "SYSTEM:Global Churn");
+                                    msisdn, ReasonCode.GLOBAL_CHURN_LOOP, "SYSTEM:GLOBAL CHURN");
                     String message =
                             "Global Churn: msisdn "
                                     + msisdn
